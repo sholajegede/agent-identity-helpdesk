@@ -5,7 +5,8 @@ import {agentAuth} from './agentAuth';
 
 // Register (or update) an agent against its Kinde M2M client_id. The agent's
 // capability lives here as `scopes`; the component authorizes every action
-// against these. `allowedTools` mirrors the scopes so authorize() gates on them.
+// against these. allowedTools is left empty so the decision is scope-based only
+// (an out-of-scope action is denied with insufficient_scope, not tool_not_allowed).
 export const provisionAgent = internalMutation({
   args: {
     kindeClientId: v.string(),
@@ -15,12 +16,13 @@ export const provisionAgent = internalMutation({
   },
   returns: v.object({agentId: v.string(), created: v.boolean()}),
   handler: async (ctx, args) => {
-    const existing = await agentAuth.getAgent(ctx, {kindeClientId: args.kindeClientId});
+    const all = await agentAuth.listAgents(ctx, {});
+    const existing = all.find((a) => a.kindeClientId === args.kindeClientId);
     if (existing) {
       await agentAuth.setAgentPolicy(ctx, {
         agentId: existing._id as GenericId<'agents'>,
         scopes: args.scopes,
-        allowedTools: args.scopes,
+        allowedTools: [],
       });
       return {agentId: existing._id, created: false};
     }
@@ -31,7 +33,7 @@ export const provisionAgent = internalMutation({
       ownerKind: 'platform',
       kindeClientId: args.kindeClientId,
       scopes: args.scopes,
-      allowedTools: args.scopes,
+      allowedTools: [],
     });
     return {agentId, created: true};
   },
