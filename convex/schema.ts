@@ -56,6 +56,15 @@ export default defineSchema({
     correlationId: v.optional(v.string()),
   }).index('by_run', ['runId']),
 
+  // A human's live status, checked on every tool call. Suspending a user here
+  // does not touch the agent's already-issued token — that stays valid until it
+  // expires; this check is what actually stops the next call.
+  userStatus: defineTable({
+    orgCode: v.string(),
+    subject: v.string(),
+    status: v.union(v.literal('active'), v.literal('offboarded')),
+  }).index('by_subject', ['orgCode', 'subject']),
+
   auditLog: defineTable({
     at: v.number(),
     mode: v.string(),

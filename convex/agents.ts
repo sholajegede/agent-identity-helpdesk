@@ -38,3 +38,24 @@ export const provisionAgent = internalMutation({
     return {agentId, created: true};
   },
 });
+
+import {GenericId as _GenericId} from 'convex/values';
+
+// The kill switch: switch an agent off (or back on) by its Kinde client id.
+// A suspended agent's next authorize() is refused by the component, while other
+// callers and the developer are unaffected.
+export const setAgentActive = internalMutation({
+  args: {kindeClientId: v.string(), active: v.boolean()},
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const all = await agentAuth.listAgents(ctx, {});
+    const agent = all.find((a) => a.kindeClientId === args.kindeClientId);
+    if (!agent) return false;
+    if (args.active) {
+      await agentAuth.reactivateAgent(ctx, {agentId: agent._id as _GenericId<'agents'>});
+    } else {
+      await agentAuth.suspendAgent(ctx, {agentId: agent._id as _GenericId<'agents'>, reason: 'kill switch'});
+    }
+    return true;
+  },
+});
