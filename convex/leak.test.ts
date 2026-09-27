@@ -77,10 +77,12 @@ test('every run records an audit row with a correlationId', async () => {
     orgCode: ORG,
     requestedMode: 'shared-key',
   });
+  const {correlationId} = res;
+  if (!correlationId) throw new Error('expected a correlationId on the run result');
   const rows = await t.run(async (ctx) =>
     ctx.db
       .query('auditLog')
-      .withIndex('by_correlation', (q) => q.eq('correlationId', res.correlationId))
+      .withIndex('by_correlation', (q) => q.eq('correlationId', correlationId))
       .collect(),
   );
   expect(rows.length).toBeGreaterThan(0);
