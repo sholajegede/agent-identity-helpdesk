@@ -126,6 +126,28 @@ http.route({
       runId, kind: 'run-started', detail: `Refund agent run started (mode: ${body.mode}) for ${body.actingSubject}.`,
     });
 
+    // Lifetime: the agent's token still verifies, but the human it acts for was
+    // offboarded. The signed token cannot know that, so the app checks status on
+    // every call. This is what closes the window between offboarding and expiry.
+    const offboarded = await ctx.runQuery(internal.status.isOffboarded, {
+      orgCode: body.orgCode, subject: body.actingSubject,
+    });
+    if (offboarded) {
+      const correlationId = crypto.randomUUID();
+      await ctx.runMutation(internal.secureOps.audit, {
+        mode: body.mode, actorKind: 'agent', actorId: verified.subject,
+        actingForSubject: body.actingSubject, action: 'refunds:issue',
+        decision: 'deny', reason: 'user_offboarded', humanChecked: true, correlationId,
+      });
+      await ctx.runMutation(internal.secureOps.event, {
+        runId, kind: 'refund-denied',
+        detail: 'Refund denied: the human it acts for is offboarded (token still valid).',
+        correlationId,
+      });
+      await ctx.runMutation(internal.secureOps.finishRun, {runId});
+      return json({allowed: false, reason: 'user_offboarded', correlationId});
+    }
+
     // Intersection binds the human's ceiling; broken never checks the human.
     let actingForSubject: string | undefined;
     if (body.mode === 'intersection') {
@@ -186,5 +208,53 @@ http.route({
     return json({allowed: true, correlationId: decision.correlationId});
   }),
 });
+// Lifetime / kill switch: tickets:read is normally allowed for the ticket agent.
+// Suspend the agent in the registry and the very next call is refused, while the
+// developer's own path keeps working.
+http.route({
+  path: '/agent/ticket/read',
+  method: 'POST',
+  handler: httpAction(async (ctx, req) => {
+    const token = bearer(req);
+    if (!token) return json({error: 'missing token'}, 401);
+    const {orgCode} = (await req.json()) as {orgCode: string};
+
+    let verified;
+    try {
+      verified = await agentAuth.verifyCaller(ctx, token);
+    } catch (e) {
+      // verifyCaller refuses a suspended agent up front (code agent_suspended).
+      // That is the kill switch firing, so return it as a refusal, not a 401.
+      const code = (e as {data?: {code?: string}})?.data?.code;
+      if (code === 'agent_suspended') return json({allowed: false, reason: code});
+      return json({error: 'invalid token', detail: String(e)}, 401);
+    }
+    if (!verified.agentId) return json({error: 'unregistered agent'}, 403);
+    const agentId = verified.agentId as GenericId<'agents'>;
+
+    // Defense in depth: startInstance and authorize also reject a suspended
+    // agent with agent_suspended, in case suspension lands mid-run.
+    try {
+      const instanceId = await agentAuth.startInstance(ctx, {
+        agentId,
+        runId: `ticketread_${Date.now()}`,
+        expiresAt: Date.now() + HOUR,
+        orgCode: verified.orgCode ?? undefined,
+      });
+      const {decision} = await agentAuth.authorize(ctx, token, {
+        instanceId: instanceId as GenericId<'instances'>,
+        action: 'tickets:read',
+      });
+      return json({
+        allowed: decision.allowed,
+        reason: decision.reason,
+        correlationId: decision.correlationId,
+      });
+    } catch (e) {
+      return json({allowed: false, reason: 'agent_suspended', detail: String(e)});
+    }
+  }),
+});
+
 
 export default http;
