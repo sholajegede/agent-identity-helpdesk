@@ -13,6 +13,7 @@ import type * as agents from "../agents.js";
 import type * as audit from "../audit.js";
 import type * as authz from "../authz.js";
 import type * as delegation from "../delegation.js";
+import type * as demo from "../demo.js";
 import type * as http from "../http.js";
 import type * as roles from "../roles.js";
 import type * as secrets from "../secrets.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   audit: typeof audit;
   authz: typeof authz;
   delegation: typeof delegation;
+  demo: typeof demo;
   http: typeof http;
   roles: typeof roles;
   secrets: typeof secrets;
