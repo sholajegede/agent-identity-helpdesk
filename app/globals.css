@@ -181,3 +181,15 @@ body {
 @media (max-width: 860px) {
   .grid2, .grid-desk { grid-template-columns: 1fr; }
 }
+
+/* role permissions under the refund controls */
+.perms { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.perm { font-family: var(--font-mono); font-size: 12px; padding: 2px 9px; border-radius: var(--r-sm); }
+.perm.yes { background: var(--allow-bg); color: var(--allow); }
+.perm.no { background: var(--deny-bg); color: var(--deny); }
+
+/* decoded token claims */
+.claims { display: grid; grid-template-columns: 52px 1fr; gap: 8px 12px; margin: 16px 0 0; font-size: 13px; }
+.claims dt { font-family: var(--font-mono); color: var(--faint); }
+.claims dd { margin: 0; font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+.claims dd .muted { font-size: 11px; margin-top: 2px; }

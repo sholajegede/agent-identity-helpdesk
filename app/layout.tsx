@@ -1,4 +1,5 @@
 import type {Metadata} from 'next';
+// @ts-ignore TS2307: Cannot find module or type declarations for side-effect import of './globals.css'.
 import './globals.css';
 import ConvexClientProvider from './ConvexClientProvider';
 
