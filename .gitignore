@@ -15,3 +15,4 @@ AGENTS.md
 .agents/
 .claude/
 skills-lock.json
+.vercel

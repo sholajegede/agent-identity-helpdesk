@@ -15,6 +15,9 @@ type TokenClaims = {
   scp?: string[];
 };
 
+// basePath does not apply to raw fetch calls, so API paths carry it by hand.
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 const REFUND_PERMS = ["tickets:read", "tickets:reply", "refunds:issue"] as const;
 
 function fmtLeft(sec: number) {
@@ -111,7 +114,7 @@ export default function Console() {
     setTokenAgent(agent);
     setTokenBusy(true);
     try {
-      const r = await fetch(`/api/token?agent=${agent}`).then((x) => x.json());
+      const r = await fetch(`${BASE}/api/token?agent=${agent}`).then((x) => x.json());
       setClaims(r.claims ?? null);
       setNow(Math.floor(Date.now() / 1000));
     } finally {
@@ -138,7 +141,7 @@ export default function Console() {
         setStatus(`Ran ${mode} on the developer path.`);
       } else if (mode === "own-identity") {
         await reseedDesk();
-        const r = await fetch("/api/run", {
+        const r = await fetch(`${BASE}/api/run`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ mode }),
@@ -150,7 +153,7 @@ export default function Console() {
         );
       } else {
         const freshTicketId = await reseedDesk();
-        const r = await fetch("/api/run", {
+        const r = await fetch(`${BASE}/api/run`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -179,7 +182,7 @@ export default function Console() {
   async function readAsTicketAgent() {
     setBusy(true);
     try {
-      const r = await fetch("/api/run", {
+      const r = await fetch(`${BASE}/api/run`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mode: "ticket-read" }),
