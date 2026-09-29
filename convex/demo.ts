@@ -12,7 +12,6 @@ import {serverMode, modeSelectable} from './authz';
 
 const ORG = () => process.env.DEMO_ORG_CODE || 'org_demo';
 const LEAD = () => process.env.DEMO_LEAD_SUBJECT || 'kp_lead';
-const TICKET_CLIENT = () => process.env.TICKET_AGENT_CLIENT_ID || '';
 
 export const snapshot = query({
   args: {},
@@ -119,8 +118,22 @@ export const runKeyMode = action({
   args: {requestedMode: v.string()},
   returns: v.null(),
   handler: async (ctx, {requestedMode}): Promise<null> => {
+    // Reseed the desk so each run shows its own outcome, not a leak left by a
+    // previous run. The audit log is untouched, so decisions still accumulate.
+    await ctx.runMutation(internal.seed.reset, {orgCode: ORG()});
     await ctx.runMutation(internal.ticketAgent.run, {orgCode: ORG(), requestedMode});
     return null;
+  },
+});
+
+// Reseed the desk and return the fresh planted ticket id, so the browser can
+// start an identity-mode run from a clean desk (same isolation as the key modes).
+export const reseedDesk = action({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx): Promise<string> => {
+    const r = await ctx.runMutation(internal.seed.reset, {orgCode: ORG()});
+    return r.plantedTicketId as string;
   },
 });
 
@@ -148,7 +161,9 @@ export const setTicketAgentActive = mutation({
   returns: v.boolean(),
   handler: async (ctx, {active}): Promise<boolean> => {
     const all = await agentAuth.listAgents(ctx, {});
-    const agent = all.find((a) => (a as {kindeClientId?: string}).kindeClientId === TICKET_CLIENT());
+    // By slug: the slug is fixed at provisioning, and the client id env var only
+    // exists in the Next app, not on the Convex deployment.
+    const agent = all.find((a) => (a as {slug?: string}).slug === 'ticket-agent');
     if (!agent) return false;
     const agentId = agent._id as GenericId<'agents'>;
     if (active) await agentAuth.reactivateAgent(ctx, {agentId});

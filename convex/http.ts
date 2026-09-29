@@ -77,6 +77,18 @@ http.route({
         : `read_table(integration_secrets) denied: ${decision.reason}`,
       correlationId: decision.correlationId,
     });
+    // The audit row names the ticket agent, not the developer: that is the
+    // whole difference from the key modes.
+    await ctx.runMutation(internal.secureOps.audit, {
+      mode: 'own-identity',
+      actorKind: 'agent',
+      actorId: verified.subject,
+      action: 'read_table:integration_secrets',
+      decision: decision.allowed ? 'allow' : 'deny',
+      reason: decision.reason,
+      humanChecked: false,
+      correlationId: decision.correlationId,
+    });
 
     if (!decision.allowed) {
       await ctx.runMutation(internal.secureOps.finishRun, {runId});
@@ -208,36 +220,76 @@ http.route({
     return json({allowed: true, correlationId: decision.correlationId});
   }),
 });
+// The azp claim names the calling client. Used only to label the run and audit
+// row when verifyCaller refuses a suspended agent (the signature was checked).
+function azpOf(token: string): string {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return (JSON.parse(atob(part)) as {azp?: string}).azp ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 // Lifetime / kill switch: tickets:read is normally allowed for the ticket agent.
-// Suspend the agent in the registry and the very next call is refused, while the
-// developer's own path keeps working.
+// Suspend the agent in the registry and its very next call is refused, while
+// every other agent and the developer's own path keep working.
 http.route({
   path: '/agent/ticket/read',
   method: 'POST',
   handler: httpAction(async (ctx, req) => {
     const token = bearer(req);
     if (!token) return json({error: 'missing token'}, 401);
-    const {orgCode} = (await req.json()) as {orgCode: string};
+    await req.json();
+    const azp = azpOf(token);
+
+    const runId = await ctx.runMutation(internal.secureOps.createRun, {
+      mode: 'kill-switch',
+      actingSubject: azp,
+    });
+    await ctx.runMutation(internal.secureOps.event, {
+      runId, kind: 'run-started', detail: 'Ticket agent asks to read tickets (tickets:read).',
+    });
+
+    const record = async (allowed: boolean, reason: string, correlationId: string) => {
+      await ctx.runMutation(internal.secureOps.audit, {
+        mode: 'kill-switch', actorKind: 'agent', actorId: azp, action: 'tickets:read',
+        decision: allowed ? 'allow' : 'deny', reason, humanChecked: false, correlationId,
+      });
+      await ctx.runMutation(internal.secureOps.event, {
+        runId,
+        kind: allowed ? 'tickets-read' : 'read-refused',
+        detail: allowed
+          ? 'tickets:read allowed. The agent is active.'
+          : `tickets:read refused: ${reason}. The token is still valid; the agent is switched off.`,
+        correlationId,
+      });
+      await ctx.runMutation(internal.secureOps.finishRun, {runId});
+      return json({allowed, reason, correlationId});
+    };
 
     let verified;
     try {
       verified = await agentAuth.verifyCaller(ctx, token);
     } catch (e) {
       // verifyCaller refuses a suspended agent up front (code agent_suspended).
-      // That is the kill switch firing, so return it as a refusal, not a 401.
+      // That is the kill switch firing, so record it as a refusal, not a 401.
       const code = (e as {data?: {code?: string}})?.data?.code;
-      if (code === 'agent_suspended') return json({allowed: false, reason: code});
+      if (code === 'agent_suspended') return record(false, code, crypto.randomUUID());
+      await ctx.runMutation(internal.secureOps.finishRun, {runId});
       return json({error: 'invalid token', detail: String(e)}, 401);
     }
-    if (!verified.agentId) return json({error: 'unregistered agent'}, 403);
-    const agentId = verified.agentId as GenericId<'agents'>;
+    if (!verified.agentId) {
+      await ctx.runMutation(internal.secureOps.finishRun, {runId});
+      return json({error: 'unregistered agent'}, 403);
+    }
 
     // Defense in depth: startInstance and authorize also reject a suspended
-    // agent with agent_suspended, in case suspension lands mid-run.
+    // agent, in case suspension lands mid-run.
     try {
       const instanceId = await agentAuth.startInstance(ctx, {
-        agentId,
-        runId: `ticketread_${Date.now()}`,
+        agentId: verified.agentId as GenericId<'agents'>,
+        runId: `ticketread_${runId}`,
         expiresAt: Date.now() + HOUR,
         orgCode: verified.orgCode ?? undefined,
       });
@@ -245,16 +297,11 @@ http.route({
         instanceId: instanceId as GenericId<'instances'>,
         action: 'tickets:read',
       });
-      return json({
-        allowed: decision.allowed,
-        reason: decision.reason,
-        correlationId: decision.correlationId,
-      });
-    } catch (e) {
-      return json({allowed: false, reason: 'agent_suspended', detail: String(e)});
+      return record(decision.allowed, decision.reason, decision.correlationId);
+    } catch {
+      return record(false, 'agent_suspended', crypto.randomUUID());
     }
   }),
 });
-
 
 export default http;
