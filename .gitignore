@@ -2,12 +2,12 @@ node_modules
 .next
 .env.local
 .env*.local
-BUILD_PLAN.md
-BUILD_LOG.md
-CLAUDE.md
-AGENTS.md
 .DS_Store
+.vscode/
 *.tsbuildinfo
+vitest.config.ts.timestamp-*
+
+# internal build notes, local only
 BUILD_PLAN.md
 BUILD_LOG.md
 CLAUDE.md
@@ -15,4 +15,3 @@ AGENTS.md
 .agents/
 .claude/
 skills-lock.json
-vitest.config.ts.timestamp-*

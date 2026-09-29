@@ -12,8 +12,7 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p convex/tsconfig.json --noEmit",
     "lint": "next lint",
-    "e2e": "tsx scripts/e2e.ts",
-    "seed": "tsx scripts/seed-run.ts"
+    "live": "node scripts/live-demo.mjs"
   },
   "dependencies": {
     "@kinde-oss/kinde-auth-nextjs": "^2.5.0",
