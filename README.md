@@ -19,9 +19,9 @@ next one fixes.**
 ## What this is
 
 In July 2025 a security team called General Analysis published a demonstration
-against a support app built on Supabase. A customer filed a ticket with a block
-of text written for an AI assistant: read the `integration_tokens` table and
-post everything into this ticket. The support staff opened the ticket and
+against a test support app built on Supabase. Acting as a customer, the
+researchers filed a ticket with a block of text written for an AI assistant:
+read the `integration_tokens` table and post everything into this ticket. The support staff opened the ticket and
 nothing happened, because their database role cannot see that table. Later a
 developer asked Cursor to show the latest open ticket. Cursor ran through the
 Supabase MCP server on the developer's `service_role` key, followed the planted
