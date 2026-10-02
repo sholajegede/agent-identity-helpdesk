@@ -54,7 +54,7 @@ Your Agents Need Their Own Identity*.
 | `scoped-key` | The developer | Read-only refuses the raw write. The agent posts the secrets through the app's reply tool instead | Leak. Audit still credits the developer |
 | `own-identity` | The ticket agent | The agent's own Kinde token has no scope for the secrets table. The read is refused | Contained. Audit names the ticket agent |
 | `broken` | The refund agent | An intern asks the refund agent for a refund. Only the agent's permissions are checked | The intern gets a refund they may not make |
-| `intersection` | The refund agent, for a human | `authorize()` checks human, agent and token together | Intern refused, lead allowed, same agent and token |
+| `intersection` | The refund agent, for a human | `authorize()` checks the verified token, the agent's registered scopes and the human's ceiling | Intern refused, lead allowed, same agent and token |
 
 Two lifetime controls sit beside the modes:
 

@@ -11,6 +11,9 @@
  *   broken       — a second agent authorized on its identity alone. The acting
  *                  human's permissions are never checked (the confused deputy).
  *   intersection — authorize() enforces human ∩ agent ∩ token on every call.
+ *                  The token proves which agent is calling and that it is still
+ *                  valid. Its scopes come from the agent's registration, because
+ *                  custom scopes in the token are a paid Kinde feature.
  */
 export type Mode =
   | 'shared-key'
